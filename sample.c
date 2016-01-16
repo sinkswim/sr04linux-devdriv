@@ -78,6 +78,7 @@ typedef struct {		// Trigger work structure typedef
 
 static my_work_t trigger_work;		// trigger work struct
 static led_work_t led_work;		// LED work struct
+static int stop_wq = 0;         // 0: the workers keep going
 
 /* Trigger wq sets/unsets pin D7 (trigger) to drive the sensor */
 static void trigger_wq_function( struct work_struct *work )
@@ -88,7 +89,7 @@ static void trigger_wq_function( struct work_struct *work )
 	my_work = (my_work_t *)work;
 	delay = my_work->delay;
 
-	while(TRUE){
+	while(stop_wq == 0){
 		gpio_set_value(TRIGGER, 1);
 		msleep(delay);
 		gpio_set_value(TRIGGER, 0);
@@ -99,7 +100,7 @@ static void trigger_wq_function( struct work_struct *work )
 /* LED wq blinks LED with frequency based on hperiod global var */
 static void led_wq_function( struct work_struct *led_work )
 {
-	while(TRUE)	// blink the LED
+	while(stop_wq == 0)	// blink the LED
 	{
 			gpio_set_value( LED, 1 );
 			msleep(blk_hperiod);
@@ -397,6 +398,11 @@ static void __exit sample_cleanup_module(void)
 	 */
 	free_irq( gpio_to_irq( ECHO ), NULL );
 
+    /* destroy the workqueues */
+    stop_wq = 1;                // stop the 2 running workers
+    destroy_workqueue(t_wq);
+    destroy_workqueue(led_wq);
+    
 	/*
 	 * Release the gpios
 	 */
